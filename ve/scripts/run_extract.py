@@ -44,6 +44,22 @@ from presence_thr import load_thr_file, thr_for_sample
 from report_ve import write_run_reports
 from tse_factory import create_tse
 
+
+def load_pvad_config(path: Path | None) -> dict[str, Any]:
+    """Read flat P0 YAML without adding a runtime dependency."""
+    out: dict[str, Any] = {"win_sec": 1.0, "hop_sec": 0.2, "lambda": .10, "seed_abs": 0.0,
+                           "top2_margin": .04, "min_consecutive": 2, "support_margin": 0.0,
+                           "gray_low": .05, "gray_high": .05}
+    if path is None:
+        return out
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        raw = raw.split("#", 1)[0].strip()
+        if ":" not in raw: continue
+        key, value = (x.strip() for x in raw.split(":", 1))
+        if key in out:
+            out[key] = int(float(value)) if key == "min_consecutive" else float(value)
+    return out
+
 setup_sys_path()
 
 
@@ -278,6 +294,9 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="灰区且次优窗明显低于最优窗时否决",
     )
+    p.add_argument("--pvad-ase", action="store_true", help="启用无训练 ASE-PVAD P0；默认关闭")
+    p.add_argument("--pvad-mode", choices=("audit_only", "rescue_only", "bidirectional_gray"), default="audit_only")
+    p.add_argument("--pvad-config", type=Path, default=None)
     return p.parse_args()
 
 
@@ -291,6 +310,9 @@ def resolve_sep_depth(args: argparse.Namespace, backend: str) -> int:
 
 def main() -> int:
     args = parse_args()
+    pvad_cfg = load_pvad_config(args.pvad_config) if args.pvad_ase else None
+    pvad_config_sha = (hashlib.sha256(args.pvad_config.read_bytes()).hexdigest()
+                       if args.pvad_ase and args.pvad_config is not None else None)
     backend = normalize_backend(args.tse_backend)
     sep_depth = resolve_sep_depth(args, backend)
     use_sep = sep_depth >= 1
@@ -585,9 +607,33 @@ def main() -> int:
                 enroll, cmd, enroll_key=uid, sr=sr, thr=thr, save_dir=save_dir,
                 precomputed_streams=cached_streams, precomputed_sep_dir=cache_dir,
             )
+            pvad_audit: dict[str, Any] | None = None
+            if pvad_cfg is not None:
+                # P0 is stateless: no embedding is persisted or reused across UIDs.
+                from pvad_self_augment import ASEConfig, augment, augmented_score
+                cfg = ASEConfig(win_sec=float(pvad_cfg["win_sec"]), hop_sec=float(pvad_cfg["hop_sec"]),
+                    lam=float(pvad_cfg["lambda"]), seed_abs=float(pvad_cfg["seed_abs"]),
+                    top2_margin=float(pvad_cfg["top2_margin"]), min_consecutive=int(pvad_cfg["min_consecutive"]),
+                    support_margin=float(pvad_cfg["support_margin"]))
+                pvad_audit = augment(enc, enroll_emb, streams, sr, cfg)
+                score_aug = augmented_score(enc, pvad_audit.pop("embedding"), streams, sr)
+                pvad_audit.update({"mode": args.pvad_mode, "score_static": round(float(pr.score), 6),
+                    "score_aug": round(score_aug, 6), "config_sha256": pvad_config_sha,
+                    "fallback_used": not bool(pvad_audit["applied"])})
+                gray = float(pvad_cfg["gray_low"] if pr.score < pr.thr else pvad_cfg["gray_high"])
+                pvad_audit["decision_eligible"] = bool(pr.score_norm == "raw" and abs(pr.score - pr.thr) <= gray)
+                if (pvad_audit["applied"] and args.pvad_mode == "rescue_only" and pr.reject
+                        and pvad_audit["decision_eligible"] and score_aug >= pr.thr):
+                    pr.score, pr.reject, pr.reason = score_aug, False, "pvad_ase_rescue"
+                elif (pvad_audit["applied"] and args.pvad_mode == "bidirectional_gray"
+                        and pvad_audit["decision_eligible"]):
+                    pr.score, pr.reject = score_aug, score_aug < pr.thr
+                    pr.reason = "pvad_ase_gray_reject" if pr.reject else ""
             if cached_streams is None:
                 reuse_stats["fresh"] += 1
             rec.update(pr.to_dict())
+            if pvad_audit is not None:
+                rec["pvad"] = pvad_audit
             rec["sep_source"] = "cache" if cached_streams is not None else "fresh"
             rec["sep_cache_validation"] = cache_state
             rec["presence_thr"] = thr

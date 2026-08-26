@@ -289,6 +289,9 @@ SCORE_NORM_TAG=raw
 [[ "${ENROLL_ZNORM:-0}" == "1" && "$SCORE_NORM_TAG" == "raw" ]] && SCORE_NORM_TAG=enroll_znorm
 VETO_CAMP="${VETO_CAMP:-0}"
 VETO_WINDOWS="${VETO_WINDOWS:-0}"
+PVAD_ASE="${PVAD_ASE:-0}"
+PVAD_MODE="${PVAD_MODE:-audit_only}"
+PVAD_CONFIG="${PVAD_CONFIG:-$ROOT/configs/pvad_ase.yaml}"
 
 if [[ -z "${VE_OUT:-}" || "${VE_OUT}" == "/root/autodl-tmp/ve" ]]; then
   VE_OUT="/root/autodl-tmp/ve_${PIPELINE}_${VAD_TAG}"
@@ -541,6 +544,10 @@ if [[ "$VETO_CAMP" == "1" ]]; then
   EXT_ARGS+=(--veto-backend "${VETO_BACKEND:-campplus}" --veto-margin "${VETO_MARGIN:-0.12}")
 fi
 [[ "$VETO_WINDOWS" == "1" ]] && EXT_ARGS+=(--veto-windows)
+if [[ "$PVAD_ASE" == "1" ]]; then
+  [[ -f "$PVAD_CONFIG" ]] || { echo "[ERR] PVAD_CONFIG 不存在: $PVAD_CONFIG"; exit 1; }
+  EXT_ARGS+=(--pvad-ase --pvad-mode "$PVAD_MODE" --pvad-config "$PVAD_CONFIG")
+fi
 [[ "$PIPELINE" == "cond_tasnet" && -n "${COND_TASNET_CKPT:-}" ]] && EXT_ARGS+=(--cond-tasnet-ckpt "$COND_TASNET_CKPT")
 [[ "$PIPELINE" == "adaptive_route" ]] && EXT_ARGS+=(--route-min-gain "${ROUTE_MIN_GAIN:-0.03}")
 [[ -n "${ECAPA_DIR:-}" ]] && EXT_ARGS+=(--ecapa-dir "$ECAPA_DIR")

@@ -1,0 +1,11 @@
+# P0 defaults: audit-only; never changes the frozen gate unless explicitly enabled.
+mode: audit_only
+win_sec: 1.0
+hop_sec: 0.2
+lambda: 0.10
+seed_abs: 0.0
+top2_margin: 0.04
+min_consecutive: 2
+support_margin: 0.0
+gray_low: 0.05
+gray_high: 0.05
