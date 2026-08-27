@@ -55,6 +55,36 @@ PYTHONUNBUFFERED=1 "$PYTHON_BIN" scripts/final_evaluate.py \
 
 查看 `ranking/gate_ranking.md`。只有 coverage 完整且相对冻结基线的配对分差 `p05>0` 才入围；若没有入围项，保留仓库 `locked_thr.json`。
 
+### 1.1 ASE-PVAD rescue 专用校准
+
+ASE 影子全量与同 manifest 的全正样本 ASR 完成后，使用专用优化器；普通 `optimize_gate_for_score.py` 不支持 PVAD rescue 合同。
+
+```bash
+PVAD_AUDIT=/root/autodl-tmp/pvad_full_audit_d1_<tag>
+ALL_POS=/root/autodl-tmp/pvad_all_pos_raw_v1
+PVAD_OPT=/root/autodl-tmp/pvad_rescue_opt_v1
+
+python scripts/optimize_pvad_rescue.py \
+  --decisions "$PVAD_AUDIT/results/all_results.jsonl" \
+  --asr-all-pos "$ALL_POS/reports/asr_cer/asr_results.jsonl" \
+  --out-dir "$PVAD_OPT" \
+  --threshold-modes global,lang_split \
+  --holdout-frac 0.30 --seeds 500 \
+  --group-field enroll_wav --strict
+```
+
+只有输出 `frozen_threshold.json` 且 `paired_delta.p05>0` 才能进入 `rescue_only`。运行时直接传阈值文件，不手抄数值：
+
+```bash
+PVAD_ASE=1 PVAD_MODE=rescue_only \
+PVAD_CONFIG=./configs/pvad_ase_rescue_candidate.yaml \
+PVAD_DECISION_THR_FILE="$PVAD_OPT/frozen_threshold.json" \
+STRICT_ENROLL=1 STRICT_EVAL=1 ASR_RESUME=0 LIMIT=0 \
+./run_all.sh
+```
+
+阈值文件中的配置哈希、聚合口径与当前运行不一致时启动即失败。全量同集最优值只用于诊断，部署值取重复训练折最优阈值的中位数。
+
 ## 2. Full finalists: KWS/gate × downstream arm
 
 最多带 2--3 个第一阶段组合进入完整 ASR。每个条目格式为 `name|KWS目录|gate_score_opt目录|policy`。脚本会对每个下游臂强制处理全部正样本，再用该臂的真实 ASR 字符错误重新选择 `global/lang_split` 阈值；不会把 mix 最优阈值直接套给所有 TSE。

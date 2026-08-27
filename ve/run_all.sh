@@ -294,6 +294,7 @@ PVAD_ASE="${PVAD_ASE:-0}"
 PVAD_MODE="${PVAD_MODE:-audit_only}"
 PVAD_CONFIG="${PVAD_CONFIG:-$ROOT/configs/pvad_ase.yaml}"
 PVAD_DECISION_THR="${PVAD_DECISION_THR:-}"
+PVAD_DECISION_THR_FILE="${PVAD_DECISION_THR_FILE:-}"
 if [[ "$PVAD_ASE" == "1" ]]; then
   [[ -f "$PVAD_CONFIG" ]] || { echo "[ERR] PVAD_CONFIG 不存在: $PVAD_CONFIG"; exit 1; }
   PVAD_CFG_TAG="$(sha256sum "$PVAD_CONFIG" | awk '{print substr($1,1,10)}')"
@@ -301,8 +302,17 @@ if [[ "$PVAD_ASE" == "1" ]]; then
   if ! git -C "$ROOT/.." diff --quiet -- ve 2>/dev/null; then
     PVAD_CODE_TAG="${PVAD_CODE_TAG}-dirty-$(git -C "$ROOT/.." diff --binary -- ve | sha256sum | awk '{print substr($1,1,10)}')"
   fi
-  if [[ "$PVAD_MODE" != "audit_only" && -z "$PVAD_DECISION_THR" ]]; then
-    echo "[ERR] 非 audit_only PVAD 必须提供独立校准的 PVAD_DECISION_THR"; exit 1
+  if [[ -n "$PVAD_DECISION_THR" && -n "$PVAD_DECISION_THR_FILE" ]]; then
+    echo "[ERR] PVAD_DECISION_THR 与 PVAD_DECISION_THR_FILE 只能设置一个"; exit 1
+  fi
+  if [[ -n "$PVAD_DECISION_THR_FILE" ]]; then
+    [[ -f "$PVAD_DECISION_THR_FILE" ]] || { echo "[ERR] PVAD threshold 文件不存在: $PVAD_DECISION_THR_FILE"; exit 1; }
+    PVAD_THR_TAG="$(sha256sum "$PVAD_DECISION_THR_FILE" | awk '{print substr($1,1,10)}')"
+  else
+    PVAD_THR_TAG="${PVAD_DECISION_THR:-none}"
+  fi
+  if [[ "$PVAD_MODE" != "audit_only" && -z "$PVAD_DECISION_THR" && -z "$PVAD_DECISION_THR_FILE" ]]; then
+    echo "[ERR] 非 audit_only PVAD 必须提供独立校准的 threshold"; exit 1
   fi
 fi
 
@@ -313,7 +323,7 @@ if [[ -z "${VE_OUT:-}" || "${VE_OUT}" == "/root/autodl-tmp/ve" ]]; then
     VE_OUT="${VE_OUT}_${WIN_TAG}"
     [[ "$ASR_CROP" == "0" ]] && VE_OUT="${VE_OUT}_fullasr"
   fi
-  [[ "$PVAD_ASE" == "1" ]] && VE_OUT="${VE_OUT}_pvad-${PVAD_MODE}-${PVAD_CFG_TAG}-${PVAD_CODE_TAG}"
+  [[ "$PVAD_ASE" == "1" ]] && VE_OUT="${VE_OUT}_pvad-${PVAD_MODE}-${PVAD_CFG_TAG}-${PVAD_THR_TAG}-${PVAD_CODE_TAG}"
 fi
 export VE_OUT
 
@@ -561,6 +571,7 @@ fi
 if [[ "$PVAD_ASE" == "1" ]]; then
   EXT_ARGS+=(--pvad-ase --pvad-mode "$PVAD_MODE" --pvad-config "$PVAD_CONFIG")
   [[ -n "$PVAD_DECISION_THR" ]] && EXT_ARGS+=(--pvad-decision-thr "$PVAD_DECISION_THR")
+  [[ -n "$PVAD_DECISION_THR_FILE" ]] && EXT_ARGS+=(--pvad-decision-thr-file "$PVAD_DECISION_THR_FILE")
 fi
 [[ "$PIPELINE" == "cond_tasnet" && -n "${COND_TASNET_CKPT:-}" ]] && EXT_ARGS+=(--cond-tasnet-ckpt "$COND_TASNET_CKPT")
 [[ "$PIPELINE" == "adaptive_route" ]] && EXT_ARGS+=(--route-min-gain "${ROUTE_MIN_GAIN:-0.03}")

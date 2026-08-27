@@ -62,6 +62,38 @@ def load_pvad_config(path: Path | None) -> dict[str, Any]:
             out[key] = int(float(value)) if key == "min_consecutive" else float(value)
     return out
 
+
+def load_pvad_decision_thresholds(
+    path: Path | None, scalar: float | None
+) -> tuple[dict[str, float] | None, dict[str, Any] | None]:
+    """Load a scalar or frozen language-aware PVAD threshold contract."""
+    if path is not None and scalar is not None:
+        raise ValueError("PVAD decision threshold scalar and file are mutually exclusive")
+    if path is None:
+        if scalar is None:
+            return None, None
+        value = float(scalar)
+        if not -1.0 <= value <= 1.0:
+            raise ValueError("PVAD decision threshold must be in [-1, 1]")
+        return {"zh": value, "en": value, "default": value}, None
+    data = json.loads(path.read_text(encoding="utf-8"))
+    raw = data.get("thr_by_lang") or data.get("thresholds")
+    if not isinstance(raw, dict):
+        value = data.get("pvad_decision_thr")
+        if value is None:
+            raise ValueError("PVAD threshold file has no thr_by_lang/thresholds/pvad_decision_thr")
+        raw = {"zh": value, "en": value, "default": value}
+    out = {str(k): float(v) for k, v in raw.items() if isinstance(v, (int, float))}
+    if "default" not in out and "zh" in out:
+        out["default"] = out["zh"]
+    if "zh" not in out and "default" in out:
+        out["zh"] = out["default"]
+    if "en" not in out and "default" in out:
+        out["en"] = out["default"]
+    if set(out) < {"zh", "en", "default"} or any(not -1.0 <= v <= 1.0 for v in out.values()):
+        raise ValueError(f"invalid PVAD language thresholds: {out}")
+    return out, data
+
 setup_sys_path()
 
 
@@ -303,6 +335,10 @@ def parse_args() -> argparse.Namespace:
         "--pvad-decision-thr", type=float, default=None,
         help="仅非 audit_only：经独立冻结折校准的 ASE 聚合分阈值；不可复用 Presence 阈值",
     )
+    p.add_argument(
+        "--pvad-decision-thr-file", type=Path, default=None,
+        help="仅非 audit_only：optimize_pvad_rescue.py 生成的冻结阈值 JSON（支持 zh/en）",
+    )
     return p.parse_args()
 
 
@@ -319,6 +355,12 @@ def main() -> int:
     pvad_cfg = load_pvad_config(args.pvad_config) if args.pvad_ase else None
     pvad_config_sha = (hashlib.sha256(args.pvad_config.read_bytes()).hexdigest()
                        if args.pvad_ase and args.pvad_config is not None else None)
+    try:
+        pvad_decision_thresholds, pvad_threshold_contract = load_pvad_decision_thresholds(
+            args.pvad_decision_thr_file, args.pvad_decision_thr
+        )
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        raise SystemExit(f"PVAD decision threshold invalid: {exc}") from exc
     pvad_impl_sha = None
     if args.pvad_ase:
         pvad_impl_sha = hashlib.sha256(
@@ -326,10 +368,17 @@ def main() -> int:
             + (Path(__file__).resolve().parent / "pvad_self_augment.py").read_bytes()
         ).hexdigest()
     if args.pvad_ase and args.pvad_mode != "audit_only":
-        if args.pvad_decision_thr is None:
-            raise SystemExit("非 audit_only 的 PVAD 必须显式提供 --pvad-decision-thr（独立校准，不可使用 Presence 阈值）")
-        if not -1.0 <= args.pvad_decision_thr <= 1.0:
-            raise SystemExit("--pvad-decision-thr 必须在 [-1, 1]")
+        if pvad_decision_thresholds is None:
+            raise SystemExit("非 audit_only 的 PVAD 必须提供独立校准的 decision threshold")
+        if pvad_threshold_contract is not None:
+            expected_cfg = pvad_threshold_contract.get("config_sha256")
+            if isinstance(expected_cfg, str) and expected_cfg != pvad_config_sha:
+                raise SystemExit(
+                    f"PVAD threshold config_sha256={expected_cfg} 与当前 config={pvad_config_sha} 不一致"
+                )
+            aggregation = pvad_threshold_contract.get("score_aggregation")
+            if aggregation not in (None, "top2_mean_approved_streams"):
+                raise SystemExit(f"PVAD threshold score_aggregation 不兼容: {aggregation}")
     backend = normalize_backend(args.tse_backend)
     sep_depth = resolve_sep_depth(args, backend)
     use_sep = sep_depth >= 1
@@ -638,19 +687,25 @@ def main() -> int:
                         allowed_sources=tuple(x.strip() for x in str(pvad_cfg["allowed_sources"]).split(",") if x.strip()))
                     pvad_audit = augment(enc, enroll_emb, streams, sr, cfg)
                     score_aug = augmented_score(enc, pvad_audit.pop("embedding"), streams, sr, cfg.allowed_sources)
+                    pvad_decision_thr = None
+                    if pvad_decision_thresholds is not None:
+                        lang = str(it.get("lang") or "zh")
+                        pvad_decision_thr = float(
+                            pvad_decision_thresholds.get(lang, pvad_decision_thresholds["default"])
+                        )
                     pvad_audit.update({"mode": args.pvad_mode, "score_static": round(float(pr.score), 6),
                         "score_aug": round(score_aug, 6), "config_sha256": pvad_config_sha,
-                        "decision_thr": args.pvad_decision_thr,
+                        "decision_thr": pvad_decision_thr,
                         "score_aggregation": "top2_mean_approved_streams",
                         "fallback_used": not bool(pvad_audit["applied"])})
                     gray = float(pvad_cfg["gray_low"] if pr.score < pr.thr else pvad_cfg["gray_high"])
                     pvad_audit["decision_eligible"] = bool(pr.score_norm == "raw" and abs(pr.score - pr.thr) <= gray)
                     if (pvad_audit["applied"] and args.pvad_mode == "rescue_only" and pr.reject
-                            and pvad_audit["decision_eligible"] and score_aug >= args.pvad_decision_thr):
+                            and pvad_audit["decision_eligible"] and score_aug >= pvad_decision_thr):
                         pr.score, pr.reject, pr.reason = score_aug, False, "pvad_ase_rescue"
                     elif (pvad_audit["applied"] and args.pvad_mode == "bidirectional_gray"
                             and pvad_audit["decision_eligible"]):
-                        pr.score, pr.reject = score_aug, score_aug < args.pvad_decision_thr
+                        pr.score, pr.reject = score_aug, score_aug < pvad_decision_thr
                         pr.reason = "pvad_ase_gray_reject" if pr.reject else ""
                 except Exception as e:
                     pvad_audit = {
@@ -658,7 +713,10 @@ def main() -> int:
                         "error_type": type(e).__name__, "error": str(e)[:500],
                         "mode": args.pvad_mode, "score_static": round(float(pr.score), 6),
                         "score_aug": round(float(pr.score), 6), "config_sha256": pvad_config_sha,
-                        "decision_thr": args.pvad_decision_thr,
+                        "decision_thr": (
+                            pvad_decision_thresholds.get(str(it.get("lang") or "zh"), pvad_decision_thresholds["default"])
+                            if pvad_decision_thresholds is not None else None
+                        ),
                         "score_aggregation": "top2_mean_approved_streams",
                         "fallback_used": True, "decision_eligible": False,
                     }
@@ -785,7 +843,8 @@ def main() -> int:
             "mode": args.pvad_mode,
             "config_sha256": pvad_config_sha,
             "implementation_sha256": pvad_impl_sha,
-            "decision_thr": args.pvad_decision_thr,
+            "decision_thresholds": pvad_decision_thresholds,
+            "decision_threshold_file": str(args.pvad_decision_thr_file) if args.pvad_decision_thr_file else None,
             "score_aggregation": "top2_mean_approved_streams",
             "n_rows": len(pvad_rows),
             "n_applied": sum(bool(r.get("applied")) for r in pvad_rows),
