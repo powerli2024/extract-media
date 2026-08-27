@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+from argparse import Namespace
 from pathlib import Path
 
 
@@ -8,6 +9,7 @@ SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 
 import presence_encoder as pe  # noqa: E402
+import run_extract  # noqa: E402
 
 
 def test_campplus_does_not_fall_back_to_eres_dir(monkeypatch, tmp_path: Path) -> None:
@@ -47,3 +49,25 @@ def test_ecapa_and_vblink100_aliases_use_separate_local_models(
         (ecapa, "ecapa1024_lm_voxceleb", "cpu"),
         (v100, "vblink2_samresnet100", "cuda:0"),
     ]
+
+
+def test_run_extract_passes_dedicated_campplus_dir_to_veto(
+    monkeypatch, tmp_path: Path
+) -> None:
+    seen = {}
+
+    def fake(backend, **kwargs):
+        seen.update(backend=backend, **kwargs)
+        return "veto"
+
+    monkeypatch.setattr(run_extract, "create_presence_encoder", fake)
+    args = Namespace(
+        veto_backend="campplus",
+        eres_dir=tmp_path / "eres",
+        spk_chs_dir=tmp_path / "resnet",
+        campplus_dir=tmp_path / "camp",
+        device="cpu",
+    )
+    assert run_extract.create_veto_encoder(args) == "veto"
+    assert seen["campplus_dir"] == tmp_path / "camp"
+    assert seen["campplus_dir"] != seen["eres_dir"]

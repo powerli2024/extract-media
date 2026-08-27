@@ -28,6 +28,7 @@ from typing import Any
 from audio_io import load_audio, save_audio
 from calibrate_presence import stratified_limit
 from paths import (
+    default_campplus_dir,
     default_cohort_dir,
     default_eres2net_dir,
     default_ps4_weights,
@@ -321,6 +322,7 @@ def parse_args() -> argparse.Namespace:
         default="",
         help="灰区第二路否决编码器（如 campplus）；空=关闭。只否决不救援",
     )
+    p.add_argument("--campplus-dir", type=Path, default=None)
     p.add_argument("--veto-margin", type=float, default=0.12)
     p.add_argument("--veto-gray", type=float, default=0.10)
     p.add_argument(
@@ -348,6 +350,19 @@ def resolve_sep_depth(args: argparse.Namespace, backend: str) -> int:
     if backend in ("sep_route", "adaptive_route") or args.use_sep:
         return 1
     return 0
+
+
+def create_veto_encoder(args: argparse.Namespace) -> Any | None:
+    veto_name = str(getattr(args, "veto_backend", "") or "").strip()
+    if not veto_name:
+        return None
+    return create_presence_encoder(
+        veto_name,
+        eres_dir=args.eres_dir or default_eres2net_dir(),
+        resnet_dir=args.spk_chs_dir or default_spk_chs_dir(),
+        campplus_dir=args.campplus_dir or default_campplus_dir(),
+        device=args.device,
+    )
 
 
 def main() -> int:
@@ -533,16 +548,9 @@ def main() -> int:
             eps=float(args.znorm_eps),
         )
 
-    veto_enc = None
     veto_name = str(getattr(args, "veto_backend", "") or "").strip()
-    if veto_name:
-        veto_enc = create_presence_encoder(
-            veto_name,
-            eres_dir=args.eres_dir or default_eres2net_dir(),
-            resnet_dir=args.spk_chs_dir or default_spk_chs_dir(),
-            campplus_dir=args.eres_dir or default_eres2net_dir(),
-            device=args.device,
-        )
+    veto_enc = create_veto_encoder(args)
+    if veto_enc is not None:
         print(f"[INFO] veto encoder={veto_enc.name} margin={args.veto_margin}", flush=True)
 
     gate = PresenceGate(
