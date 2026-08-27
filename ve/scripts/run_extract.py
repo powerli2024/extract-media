@@ -95,6 +95,11 @@ def load_pvad_decision_thresholds(
         raise ValueError(f"invalid PVAD language thresholds: {out}")
     return out, data
 
+
+def pvad_rescue_reason_allowed(reason: str) -> bool:
+    """PVAD may rescue the frozen Presence reject, never an independent veto."""
+    return str(reason or "") == "speaker_absent"
+
 setup_sys_path()
 
 
@@ -708,7 +713,12 @@ def main() -> int:
                         "fallback_used": not bool(pvad_audit["applied"])})
                     gray = float(pvad_cfg["gray_low"] if pr.score < pr.thr else pvad_cfg["gray_high"])
                     pvad_audit["decision_eligible"] = bool(pr.score_norm == "raw" and abs(pr.score - pr.thr) <= gray)
+                    pvad_audit["rescue_blocked_by_veto"] = bool(
+                        args.pvad_mode == "rescue_only" and pr.reject
+                        and not pvad_rescue_reason_allowed(pr.reason)
+                    )
                     if (pvad_audit["applied"] and args.pvad_mode == "rescue_only" and pr.reject
+                            and pvad_rescue_reason_allowed(pr.reason)
                             and pvad_audit["decision_eligible"] and score_aug >= pvad_decision_thr):
                         pr.score, pr.reject, pr.reason = score_aug, False, "pvad_ase_rescue"
                     elif (pvad_audit["applied"] and args.pvad_mode == "bidirectional_gray"

@@ -10,7 +10,7 @@ import pytest
 SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 
-from run_extract import load_pvad_decision_thresholds  # noqa: E402
+from run_extract import load_pvad_decision_thresholds, pvad_rescue_reason_allowed  # noqa: E402
 
 
 def test_load_language_pvad_threshold_contract(tmp_path: Path) -> None:
@@ -36,3 +36,9 @@ def test_scalar_and_file_are_mutually_exclusive(tmp_path: Path) -> None:
 def test_invalid_threshold_is_rejected() -> None:
     with pytest.raises(ValueError, match=r"\[-1, 1\]"):
         load_pvad_decision_thresholds(None, 1.2)
+
+
+def test_pvad_rescue_cannot_override_independent_veto() -> None:
+    assert pvad_rescue_reason_allowed("speaker_absent")
+    assert not pvad_rescue_reason_allowed("camp_veto")
+    assert not pvad_rescue_reason_allowed("window_veto")
