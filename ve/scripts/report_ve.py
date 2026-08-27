@@ -27,6 +27,11 @@ def contest_score(rr: float, cer: float) -> float:
     return round(0.5 * float(rr) + 0.5 * (1.0 - float(cer)), 6)
 
 
+def _accepted(row: dict[str, Any]) -> bool:
+    """Whether the gate accepted a sample, with or without TSE execution."""
+    return row.get("decision") in ("accept", "accept_no_tse")
+
+
 def _pos_cer(row: dict[str, Any]) -> float | None:
     """正样本 CER：误拒/失败→1；接受必须有 asr_cer/cer，否则 None（未跑 ASR）。"""
     if row.get("decision") == "reject":
@@ -52,7 +57,7 @@ def summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
     out["overall"]["decisions"] = dict(decisions)
     out["overall"]["n"] = len(rows)
 
-    accept = [r for r in rows if r.get("decision") == "accept"]
+    accept = [r for r in rows if _accepted(r)]
     reject = [r for r in rows if r.get("decision") == "reject"]
     out["overall"]["n_accept"] = len(accept)
     out["overall"]["n_reject"] = len(reject)
@@ -70,7 +75,7 @@ def summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
 
     for split, rs in by_split.items():
         n = len(rs)
-        n_acc = sum(1 for r in rs if r.get("decision") == "accept")
+        n_acc = sum(1 for r in rs if _accepted(r))
         n_rej = sum(1 for r in rs if r.get("decision") == "reject")
         n_err = sum(1 for r in rs if r.get("decision") in ("extract_error", "pipeline_error"))
         present_rs = [r for r in rs if _row_label(r) == "present"]
@@ -114,7 +119,7 @@ def summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
                 block["cer"] = round(sum(known) / n_p, 4) if n_p else 0.0
         if absent_rs:
             n_a = len(absent_rs)
-            n_a_acc = sum(1 for r in absent_rs if r.get("decision") == "accept")
+            n_a_acc = sum(1 for r in absent_rs if _accepted(r))
             n_a_rej = sum(1 for r in absent_rs if r.get("decision") == "reject")
             block["n_absent_correct_reject"] = n_a_rej
             block["n_absent_false_accept"] = n_a_acc
@@ -249,7 +254,7 @@ def write_run_reports(
         for r in rows
         if r.get("decision") in ("extract_error", "pipeline_error")
         or (_row_label(r) == "present" and r.get("decision") == "reject")
-        or (_row_label(r) == "absent" and r.get("decision") == "accept")
+        or (_row_label(r) == "absent" and _accepted(r))
     ]
     with (reports_dir / "failures.jsonl").open("w", encoding="utf-8") as f:
         for r in fails:
@@ -275,7 +280,7 @@ def write_run_reports(
             1 for r in rows if _row_label(r) == "present" and r.get("decision") == "reject"
         ),
         "absent_accepted": sum(
-            1 for r in rows if _row_label(r) == "absent" and r.get("decision") == "accept"
+            1 for r in rows if _row_label(r) == "absent" and _accepted(r)
         ),
         "extract_errors": sum(1 for r in rows if r.get("decision") == "extract_error"),
     }

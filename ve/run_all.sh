@@ -39,6 +39,7 @@ PIPELINE（提取后端）
 路径 / 设备 / 子集
 ════════════════════════════════════════════════════════════
   VE_OUT              输出根；默认 /root/autodl-tmp/ve_${PIPELINE}_${vad|novad}
+                      PVAD_ASE=1 时自动追加模式和配置哈希，避免覆盖基线结果
   DATA_DIR            datasetA；默认 /root/autodl-tmp/datasetA
   BEST_SEP_DIR        干净 KWS enroll（sep 产物）。自行指定；未设则扫描
                       pos_neg/best_sep、kws_sep/best_sep 等现成目录
@@ -292,6 +293,18 @@ VETO_WINDOWS="${VETO_WINDOWS:-0}"
 PVAD_ASE="${PVAD_ASE:-0}"
 PVAD_MODE="${PVAD_MODE:-audit_only}"
 PVAD_CONFIG="${PVAD_CONFIG:-$ROOT/configs/pvad_ase.yaml}"
+PVAD_DECISION_THR="${PVAD_DECISION_THR:-}"
+if [[ "$PVAD_ASE" == "1" ]]; then
+  [[ -f "$PVAD_CONFIG" ]] || { echo "[ERR] PVAD_CONFIG 不存在: $PVAD_CONFIG"; exit 1; }
+  PVAD_CFG_TAG="$(sha256sum "$PVAD_CONFIG" | awk '{print substr($1,1,10)}')"
+  PVAD_CODE_TAG="$(git -C "$ROOT/.." rev-parse --short=10 HEAD 2>/dev/null || echo nogit)"
+  if ! git -C "$ROOT/.." diff --quiet -- ve 2>/dev/null; then
+    PVAD_CODE_TAG="${PVAD_CODE_TAG}-dirty-$(git -C "$ROOT/.." diff --binary -- ve | sha256sum | awk '{print substr($1,1,10)}')"
+  fi
+  if [[ "$PVAD_MODE" != "audit_only" && -z "$PVAD_DECISION_THR" ]]; then
+    echo "[ERR] 非 audit_only PVAD 必须提供独立校准的 PVAD_DECISION_THR"; exit 1
+  fi
+fi
 
 if [[ -z "${VE_OUT:-}" || "${VE_OUT}" == "/root/autodl-tmp/ve" ]]; then
   VE_OUT="/root/autodl-tmp/ve_${PIPELINE}_${VAD_TAG}"
@@ -300,6 +313,7 @@ if [[ -z "${VE_OUT:-}" || "${VE_OUT}" == "/root/autodl-tmp/ve" ]]; then
     VE_OUT="${VE_OUT}_${WIN_TAG}"
     [[ "$ASR_CROP" == "0" ]] && VE_OUT="${VE_OUT}_fullasr"
   fi
+  [[ "$PVAD_ASE" == "1" ]] && VE_OUT="${VE_OUT}_pvad-${PVAD_MODE}-${PVAD_CFG_TAG}-${PVAD_CODE_TAG}"
 fi
 export VE_OUT
 
@@ -545,8 +559,8 @@ if [[ "$VETO_CAMP" == "1" ]]; then
 fi
 [[ "$VETO_WINDOWS" == "1" ]] && EXT_ARGS+=(--veto-windows)
 if [[ "$PVAD_ASE" == "1" ]]; then
-  [[ -f "$PVAD_CONFIG" ]] || { echo "[ERR] PVAD_CONFIG 不存在: $PVAD_CONFIG"; exit 1; }
   EXT_ARGS+=(--pvad-ase --pvad-mode "$PVAD_MODE" --pvad-config "$PVAD_CONFIG")
+  [[ -n "$PVAD_DECISION_THR" ]] && EXT_ARGS+=(--pvad-decision-thr "$PVAD_DECISION_THR")
 fi
 [[ "$PIPELINE" == "cond_tasnet" && -n "${COND_TASNET_CKPT:-}" ]] && EXT_ARGS+=(--cond-tasnet-ckpt "$COND_TASNET_CKPT")
 [[ "$PIPELINE" == "adaptive_route" ]] && EXT_ARGS+=(--route-min-gain "${ROUTE_MIN_GAIN:-0.03}")

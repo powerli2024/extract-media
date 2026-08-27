@@ -1,0 +1,13 @@
+# Candidate only: audit before any decision-changing run.  It is intentionally
+# narrower than pvad_ase.yaml because full audit found false rescues in other streams.
+mode: audit_only
+win_sec: 1.0
+hop_sec: 0.2
+lambda: 0.10
+seed_abs: 0.36
+top2_margin: 0.04
+min_consecutive: 2
+support_margin: 0.05
+allowed_sources: d1_spk1
+gray_low: 0.05
+gray_high: 0.05

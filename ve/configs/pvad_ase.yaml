@@ -6,6 +6,8 @@ lambda: 0.10
 seed_abs: 0.0
 top2_margin: 0.04
 min_consecutive: 2
-support_margin: 0.0
+# Neighboring overlapping windows may differ slightly; zero makes a two-window
+# support requirement practically unreachable with continuous cosine scores.
+support_margin: 0.05
 gray_low: 0.05
 gray_high: 0.05

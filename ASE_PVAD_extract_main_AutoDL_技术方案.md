@@ -514,6 +514,8 @@ python scripts/check_pvad_run.py \
   --ve-out /root/autodl-tmp/pvad_ase_smoke --expected 32 --strict
 ```
 
+`audit_only` 是默认且唯一可直接运行的模式。`rescue_only` 或 `bidirectional_gray` 必须传入由独立冻结折产生的 `PVAD_DECISION_THR`；该阈值对应 `top2_mean_approved_streams`，禁止复用 `locked_thr.json` 的 Presence `max` 阈值。运行目录会自动带上 PVAD 模式、配置哈希和代码标识，避免与基线或不同实现混用。
+
 ### 9.4 P0 全量筛选命令（实现后）
 
 ```bash
@@ -532,6 +534,8 @@ HOLDOUT_FRAC=0.30 SEEDS=500 BOOTSTRAP_REPLICATES=5000 \
 ASR_RESUME=0 STRICT_ENROLL=1 STRICT_EVAL=1 LIMIT=0 \
 ./run_pvad_experiments.sh 2>&1 | tee /root/autodl-tmp/log_pvad_ase_v1.txt
 ```
+
+其中 `rescue_only` 只能消费每个训练折导出的 `PVAD_DECISION_THR`，并在对应验证折评估；不得在全量 DatasetA 结果上选阈值后回填同一结果。ASE 单条异常必须记录为 fallback，不能形成 `pipeline_error` 或改变冻结门控决策。
 
 入围臂的最终复核：
 

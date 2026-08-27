@@ -1,0 +1,136 @@
+[INFO] stratified limit=32 → pos=24 neg=8 (pool pos=1364 neg=474)
+[INFO] VE_OUT=/root/autodl-tmp/pvad_ase_audit_smoke_marginfix
+[INFO] samples=32 thr_default=0.29305 thr_mode=lang_split backend=mix sep_depth=1 save_sep=False score_norm=raw enroll_vad=False
+[INFO] thr_by_lang={'zh': 0.29305, 'en': 0.357868, 'default': 0.29305}
+[INFO] reject_policy=speaker_absent_only
+[INFO] ERes2NetV2: python=/root/miniconda3/envs/ve/bin/python
+
+libgomp: Invalid value for environment variable OMP_NUM_THREADS
+/root/miniconda3/envs/ve/lib/python3.10/site-packages/modelscope/utils/plugins.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  import pkg_resources
+[INFO] modelscope=1.24.1 ← /root/miniconda3/envs/ve/lib/python3.10/site-packages/modelscope/__init__.py
+[INFO] load PresenceEncoder ERes2NetV2 ← /root/autodl-tmp/ve_models/eres2netv2_zh/_ms_cache/models/iic--speech_eres2netv2_sv_zh-cn_16k-common/snapshots/master
+2026-08-26 19:51:23,748 - modelscope - INFO - initiate model from /root/autodl-tmp/ve_models/eres2netv2_zh/_ms_cache/models/iic--speech_eres2netv2_sv_zh-cn_16k-common/snapshots/master
+2026-08-26 19:51:23,748 - modelscope - INFO - initiate model from location /root/autodl-tmp/ve_models/eres2netv2_zh/_ms_cache/models/iic--speech_eres2netv2_sv_zh-cn_16k-common/snapshots/master.
+2026-08-26 19:51:23,749 - modelscope - INFO - initialize model from /root/autodl-tmp/ve_models/eres2netv2_zh/_ms_cache/models/iic--speech_eres2netv2_sv_zh-cn_16k-common/snapshots/master
+/root/miniconda3/envs/ve/lib/python3.10/site-packages/modelscope/models/audio/sv/ERes2NetV2.py:342: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  torch.load(
+2026-08-26 19:51:24,237 - modelscope - WARNING - No preprocessor field found in cfg.
+2026-08-26 19:51:24,237 - modelscope - WARNING - No val key and type key found in preprocessor domain of configuration.json file.
+2026-08-26 19:51:24,237 - modelscope - WARNING - Cannot find available config to build preprocessor at mode inference, current config: {'model_dir': '/root/autodl-tmp/ve_models/eres2netv2_zh/_ms_cache/models/iic--speech_eres2netv2_sv_zh-cn_16k-common/snapshots/master'}. trying to build by task and model information.
+2026-08-26 19:51:24,237 - modelscope - WARNING - No preprocessor key ('eres2netv2-sv', 'speaker-verification') found in PREPROCESSOR_MAP, skip building preprocessor.
+[INFO] ERes2NetV2 pipeline OK kwargs=['task', 'model', 'model_revision', 'device']
+[cuda_libs] dirs=13 preloaded=12 missing=none OMP=8
+[0;93m2026-08-26 19:51:24.801721610 [W:onnxruntime:, transformer_memcpy.cc:74 ApplyImpl] 4 Memcpy nodes are added to the graph torch_jit for CUDAExecutionProvider. It might have negative impact on performance (including unable to run CUDA graph). Set session_options.log_severity_level=1 to see the detail logs before this message.[m
+[0;93m2026-08-26 19:51:25.346373412 [W:onnxruntime:, transformer_memcpy.cc:74 ApplyImpl] 4 Memcpy nodes are added to the graph torch_jit for CUDAExecutionProvider. It might have negative impact on performance (including unable to run CUDA graph). Set session_options.log_severity_level=1 to see the detail logs before this message.[m
+[0;93m2026-08-26 19:51:25.873451833 [W:onnxruntime:, transformer_memcpy.cc:74 ApplyImpl] 4 Memcpy nodes are added to the graph torch_jit for CUDAExecutionProvider. It might have negative impact on performance (including unable to run CUDA graph). Set session_options.log_severity_level=1 to see the detail logs before this message.[m
+[0;93m2026-08-26 19:51:26.412143705 [W:onnxruntime:, transformer_memcpy.cc:74 ApplyImpl] 4 Memcpy nodes are added to the graph torch_jit for CUDAExecutionProvider. It might have negative impact on performance (including unable to run CUDA graph). Set session_options.log_severity_level=1 to see the detail logs before this message.[m
+[0;93m2026-08-26 19:51:26.940432931 [W:onnxruntime:, transformer_memcpy.cc:74 ApplyImpl] 4 Memcpy nodes are added to the graph torch_jit for CUDAExecutionProvider. It might have negative impact on performance (including unable to run CUDA graph). Set session_options.log_severity_level=1 to see the detail logs before this message.[m
+[0;93m2026-08-26 19:51:27.469649999 [W:onnxruntime:, transformer_memcpy.cc:74 ApplyImpl] 4 Memcpy nodes are added to the graph torch_jit for CUDAExecutionProvider. It might have negative impact on performance (including unable to run CUDA graph). Set session_options.log_severity_level=1 to see the detail logs before this message.[m
+[moss-onnx] 模型已加载  model=MossFormer2_SS_16K_ONNX  sessions=6  provider=CUDAExecutionProvider  input=input shape=['batch_size', 'wav_length']
+[moss-onnx] ONNX 常驻（无需 ClearVoice conda）
+[INFO] MossFormer separator: mossformer2_onnx ← /root/autodl-tmp/checkpoints/MossFormer2_ONNX/simple_model.onnx
+[INFO] enroll_vad=False max_sec=4.0 cmd_windows=off veto_windows=False stream_policy=max
+[SEP_REUSE] enabled=1 root=/root/autodl-tmp/ve_sep_cache/sep_streams strict=True validation=mix_waveform_fingerprint
+extract:mix:   0%|                                                                                                                                              | 0/32 [00:00<?, ?utt/s]extract:mix:   3%|████▏                                                                                                                                 | 1/32 [00:02<01:13,  2.37s/utt]extract:mix:   6%|████████▍                                                                                                                             | 2/32 [00:03<00:50,  1.68s/utt]extract:mix:   9%|████████████▌                                                                                                                         | 3/32 [00:05<00:51,  1.78s/utt]extract:mix:  12%|████████████████▊                                                                                                                     | 4/32 [00:07<00:48,  1.72s/utt]extract:mix:  16%|████████████████████▉                                                                                                                 | 5/32 [00:08<00:43,  1.60s/utt]extract:mix:  19%|█████████████████████████▏                                                                                                            | 6/32 [00:09<00:35,  1.37s/utt]extract:mix:  22%|█████████████████████████████▎                                                                                                        | 7/32 [00:11<00:36,  1.48s/utt]extract:mix:  25%|█████████████████████████████████▌                                                                                                    | 8/32 [00:12<00:37,  1.57s/utt]extract:mix:  28%|█████████████████████████████████████▋                                                                                                | 9/32 [00:13<00:32,  1.40s/utt]extract:mix:  31%|█████████████████████████████████████████▌                                                                                           | 10/32 [00:14<00:26,  1.18s/utt]extract:mix:  34%|█████████████████████████████████████████████▋                                                                                       | 11/32 [00:15<00:23,  1.12s/utt]extract:mix:  38%|█████████████████████████████████████████████████▉                                                                                   | 12/32 [00:16<00:23,  1.15s/utt]extract:mix:  41%|██████████████████████████████████████████████████████                                                                               | 13/32 [00:18<00:24,  1.31s/utt]extract:mix:  44%|██████████████████████████████████████████████████████████▏                                                                          | 14/32 [00:19<00:20,  1.13s/utt]extract:mix:  47%|██████████████████████████████████████████████████████████████▎                                                                      | 15/32 [00:20<00:18,  1.06s/utt]extract:mix:  50%|██████████████████████████████████████████████████████████████████▌                                                                  | 16/32 [00:21<00:20,  1.31s/utt]extract:mix:  53%|██████████████████████████████████████████████████████████████████████▋                                                              | 17/32 [00:22<00:17,  1.16s/utt]extract:mix:  56%|██████████████████████████████████████████████████████████████████████████▊                                                          | 18/32 [00:25<00:21,  1.56s/utt]extract:mix:  59%|██████████████████████████████████████████████████████████████████████████████▉                                                      | 19/32 [00:26<00:18,  1.43s/utt]extract:mix:  62%|███████████████████████████████████████████████████████████████████████████████████▏                                                 | 20/32 [00:27<00:17,  1.45s/utt]extract:mix:  66%|███████████████████████████████████████████████████████████████████████████████████████▎                                             | 21/32 [00:29<00:15,  1.43s/utt]extract:mix:  69%|███████████████████████████████████████████████████████████████████████████████████████████▍                                         | 22/32 [00:30<00:13,  1.30s/utt]extract:mix:  72%|███████████████████████████████████████████████████████████████████████████████████████████████▌                                     | 23/32 [00:31<00:11,  1.27s/utt]extract:mix:  75%|███████████████████████████████████████████████████████████████████████████████████████████████████▊                                 | 24/32 [00:32<00:09,  1.16s/utt]extract:mix:  78%|███████████████████████████████████████████████████████████████████████████████████████████████████████▉                             | 25/32 [00:33<00:07,  1.09s/utt]extract:mix:  81%|████████████████████████████████████████████████████████████████████████████████████████████████████████████                         | 26/32 [00:35<00:07,  1.30s/utt]extract:mix:  84%|████████████████████████████████████████████████████████████████████████████████████████████████████████████████▏                    | 27/32 [00:36<00:06,  1.21s/utt]extract:mix:  88%|████████████████████████████████████████████████████████████████████████████████████████████████████████████████████▍                | 28/32 [00:37<00:05,  1.38s/utt]extract:mix:  91%|████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████▌            | 29/32 [00:42<00:06,  2.23s/utt]extract:mix:  94%|████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████▋        | 30/32 [00:44<00:04,  2.16s/utt]extract:mix:  97%|████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████▊    | 31/32 [00:44<00:01,  1.76s/utt]extract:mix: 100%|█████████████████████████████████████████████████████████████████████| 32/32 [00:45<00:00,  1.50s/utt, last=pos_23 decision=accept_no_tse score=0.495757 thr=0.357868]extract:mix: 100%|█████████████████████████████████████████████████████████████████████| 32/32 [00:45<00:00,  1.43s/utt, last=pos_23 decision=accept_no_tse score=0.495757 thr=0.357868]
+[OK] /root/autodl-tmp/pvad_ase_audit_smoke_marginfix/results/neg_results.jsonl n=8
+[OK] /root/autodl-tmp/pvad_ase_audit_smoke_marginfix/results/pos_results.jsonl n=24
+[SEP_CACHE] root=/root/autodl-tmp/ve_sep_cache/sep_streams groups={'neg_reject_or_error': {'n': 8, 'mix_saved': 8, 'd1_pair_saved': 8}, 'pos_reject_or_error': {'n': 24, 'mix_saved': 24, 'd1_pair_saved': 24}} missing=0 reuse={'hit': 32, 'miss': 0, 'fresh': 0} → /root/autodl-tmp/pvad_ase_audit_smoke_marginfix/reports/sep_streams_coverage.json
+{
+  "splits": {
+    "neg": {
+      "n": 8,
+      "label": "absent",
+      "n_present": 0,
+      "n_absent": 8,
+      "accept_rate": 0.0,
+      "reject_rate": 0.75,
+      "error_rate": 0.0,
+      "mean_presence_score": 0.2373,
+      "n_absent_correct_reject": 6,
+      "n_absent_false_accept": 0,
+      "far": 0.0,
+      "rr": 0.75
+    },
+    "pos": {
+      "n": 24,
+      "label": "present",
+      "n_present": 24,
+      "n_absent": 0,
+      "accept_rate": 0.0,
+      "reject_rate": 0.2917,
+      "error_rate": 0.0,
+      "mean_presence_score": 0.4398,
+      "n_present_false_reject": 7,
+      "frr": 0.2917,
+      "cer": null,
+      "cer_note": "缺少 asr_cer 的样本 17/24；请跑 ./run_asr_cer.sh 后再汇总"
+    }
+  },
+  "overall": {
+    "decisions": {
+      "reject": 13,
+      "accept_no_tse": 19
+    },
+    "n": 32,
+    "n_accept": 0,
+    "n_reject": 13,
+    "mean_presence_score": 0.3892,
+    "latency_ms": {
+      "mean": 1430.0,
+      "p50": 1221.8,
+      "p95": 2374.7
+    },
+    "rr": 0.75,
+    "n_pos": 24,
+    "n_neg": 8,
+    "n_pos_false_reject": 7,
+    "frr": 0.2917,
+    "presence_proxy_score": 0.72915,
+    "cer": null,
+    "cer_pending_asr": 17,
+    "metric": "最终 CER/竞赛分需先跑 ./run_asr_cer.sh + final_evaluate.py"
+  },
+  "audit": {
+    "reject_reasons": {
+      "speaker_absent": 13
+    },
+    "non_absent_reject_uids": [],
+    "n_non_absent_reject": 0,
+    "n_rescue_eligible": 0,
+    "n_rescue_accept": 0
+  },
+  "meta": {
+    "presence_thr": 0.29305,
+    "thr_mode": "lang_split",
+    "thr_by_lang": {
+      "zh": 0.29305,
+      "en": 0.357868,
+      "default": 0.29305
+    },
+    "presence_backend": "eres2netv2_zh",
+    "use_sep": true,
+    "sep_depth": 1,
+    "save_sep_wavs": false,
+    "score_norm": "raw",
+    "stream_policy": "max",
+    "rescue_high_margin": 0.08,
+    "rescue_floor_margin": 0.1,
+    "rescue_dominance": 0.05,
+    "tse_backend": null,
+    "pipeline": "mix",
+    "elapsed_sec": 45.78,
+    "n_samples": 32,
+    "ve_out": "/root/autodl-tmp/pvad_ase_audit_smoke_marginfix",
+    "force_extract": false,
+    "skip_tse": true,
+    "thr_file": "configs/locked_thr.json",
+    "reuse_sep_root": "/root/autodl-tmp/ve_sep_cache/sep_streams",
+    "reuse_sep_stats": {
+      "hit": 32,
+      "miss": 0,
+      "fresh": 0
+    }
+  }
+}
+[OK] reports → /root/autodl-tmp/pvad_ase_audit_smoke_marginfix/reports

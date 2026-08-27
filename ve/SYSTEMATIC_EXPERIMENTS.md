@@ -17,6 +17,42 @@ export STRICT_SEP_REUSE=1
 SEEDS=200 HOLDOUT_FRAC=0.30 THRESHOLD_MODES=global,lang_split TOP_K=3 ./run_systematic_gate_screen.sh
 ```
 
+### 0.1 补齐 `ve_sep_cache/reports/asr_cer`（标准全正样本 ASR）
+
+`SEP_REUSE_ROOT` 只复用 `d1` 波形，不会产生正式 CER 所需的 ASR。缓存准备完成且已有对应 `results/all_results.jsonl` 与 `manifest/samples.jsonl` 后，运行：
+
+```bash
+cd /root/extract-main/ve
+source .env_ve
+conda activate ve
+PYTHON_BIN="${PYTHON_BIN:-python}"
+
+VE_OUT=/root/autodl-tmp/ve_sep_cache \
+ASR_MODEL_DIR=/root/autodl-tmp/Qwen3-ASR-1.7B \
+ASR_RESUME=0 \
+PYTHONUNBUFFERED=1 "$PYTHON_BIN" scripts/asr_cer.py \
+  --ve-out /root/autodl-tmp/ve_sep_cache \
+  --out-dir /root/autodl-tmp/ve_sep_cache/reports/asr_cer \
+  --model-dir /root/autodl-tmp/Qwen3-ASR-1.7B \
+  --device cuda:0 --no-resume --require-accepted-ok \
+  2>&1 | tee /root/autodl-tmp/ve_sep_cache/reports/asr_cer/log.txt
+```
+
+结果保存为 `/root/autodl-tmp/ve_sep_cache/reports/asr_cer/asr_results.jsonl`，日志为同目录 `log.txt`。只有当该缓存目录的 `results/all_results.jsonl` 与 ASR 音频、解码配置一致时才可复用；正式候选更换提取音频或解码配置后必须全量重跑。
+
+完成 `./run_next_lift.sh submit` 后必须对 overlay 显式严格计分：
+
+```bash
+mkdir -p /root/autodl-tmp/ve_sep_cache/reports/final_eval_submit
+VE_OUT=/root/autodl-tmp/ve_sep_cache \
+PYTHONUNBUFFERED=1 "$PYTHON_BIN" scripts/final_evaluate.py \
+  --ve-out /root/autodl-tmp/ve_sep_cache \
+  --decisions /root/autodl-tmp/ve_sep_cache/reports/lift_overlay/submit_rows.jsonl \
+  --asr /root/autodl-tmp/ve_sep_cache/reports/asr_cer/asr_results.jsonl \
+  --out-dir /root/autodl-tmp/ve_sep_cache/reports/final_eval_submit \
+  --strict 2>&1 | tee /root/autodl-tmp/ve_sep_cache/reports/final_eval_submit/log.txt
+```
+
 查看 `ranking/gate_ranking.md`。只有 coverage 完整且相对冻结基线的配对分差 `p05>0` 才入围；若没有入围项，保留仓库 `locked_thr.json`。
 
 ## 2. Full finalists: KWS/gate × downstream arm

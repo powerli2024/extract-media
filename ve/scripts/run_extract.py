@@ -49,14 +49,16 @@ def load_pvad_config(path: Path | None) -> dict[str, Any]:
     """Read flat P0 YAML without adding a runtime dependency."""
     out: dict[str, Any] = {"win_sec": 1.0, "hop_sec": 0.2, "lambda": .10, "seed_abs": 0.0,
                            "top2_margin": .04, "min_consecutive": 2, "support_margin": 0.0,
-                           "gray_low": .05, "gray_high": .05}
+                           "gray_low": .05, "gray_high": .05, "allowed_sources": ""}
     if path is None:
         return out
     for raw in path.read_text(encoding="utf-8").splitlines():
         raw = raw.split("#", 1)[0].strip()
         if ":" not in raw: continue
         key, value = (x.strip() for x in raw.split(":", 1))
-        if key in out:
+        if key == "allowed_sources":
+            out[key] = value
+        elif key in out:
             out[key] = int(float(value)) if key == "min_consecutive" else float(value)
     return out
 
@@ -297,6 +299,10 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--pvad-ase", action="store_true", help="启用无训练 ASE-PVAD P0；默认关闭")
     p.add_argument("--pvad-mode", choices=("audit_only", "rescue_only", "bidirectional_gray"), default="audit_only")
     p.add_argument("--pvad-config", type=Path, default=None)
+    p.add_argument(
+        "--pvad-decision-thr", type=float, default=None,
+        help="仅非 audit_only：经独立冻结折校准的 ASE 聚合分阈值；不可复用 Presence 阈值",
+    )
     return p.parse_args()
 
 
@@ -313,6 +319,17 @@ def main() -> int:
     pvad_cfg = load_pvad_config(args.pvad_config) if args.pvad_ase else None
     pvad_config_sha = (hashlib.sha256(args.pvad_config.read_bytes()).hexdigest()
                        if args.pvad_ase and args.pvad_config is not None else None)
+    pvad_impl_sha = None
+    if args.pvad_ase:
+        pvad_impl_sha = hashlib.sha256(
+            Path(__file__).read_bytes()
+            + (Path(__file__).resolve().parent / "pvad_self_augment.py").read_bytes()
+        ).hexdigest()
+    if args.pvad_ase and args.pvad_mode != "audit_only":
+        if args.pvad_decision_thr is None:
+            raise SystemExit("非 audit_only 的 PVAD 必须显式提供 --pvad-decision-thr（独立校准，不可使用 Presence 阈值）")
+        if not -1.0 <= args.pvad_decision_thr <= 1.0:
+            raise SystemExit("--pvad-decision-thr 必须在 [-1, 1]")
     backend = normalize_backend(args.tse_backend)
     sep_depth = resolve_sep_depth(args, backend)
     use_sep = sep_depth >= 1
@@ -610,25 +627,41 @@ def main() -> int:
             pvad_audit: dict[str, Any] | None = None
             if pvad_cfg is not None:
                 # P0 is stateless: no embedding is persisted or reused across UIDs.
-                from pvad_self_augment import ASEConfig, augment, augmented_score
-                cfg = ASEConfig(win_sec=float(pvad_cfg["win_sec"]), hop_sec=float(pvad_cfg["hop_sec"]),
-                    lam=float(pvad_cfg["lambda"]), seed_abs=float(pvad_cfg["seed_abs"]),
-                    top2_margin=float(pvad_cfg["top2_margin"]), min_consecutive=int(pvad_cfg["min_consecutive"]),
-                    support_margin=float(pvad_cfg["support_margin"]))
-                pvad_audit = augment(enc, enroll_emb, streams, sr, cfg)
-                score_aug = augmented_score(enc, pvad_audit.pop("embedding"), streams, sr)
-                pvad_audit.update({"mode": args.pvad_mode, "score_static": round(float(pr.score), 6),
-                    "score_aug": round(score_aug, 6), "config_sha256": pvad_config_sha,
-                    "fallback_used": not bool(pvad_audit["applied"])})
-                gray = float(pvad_cfg["gray_low"] if pr.score < pr.thr else pvad_cfg["gray_high"])
-                pvad_audit["decision_eligible"] = bool(pr.score_norm == "raw" and abs(pr.score - pr.thr) <= gray)
-                if (pvad_audit["applied"] and args.pvad_mode == "rescue_only" and pr.reject
-                        and pvad_audit["decision_eligible"] and score_aug >= pr.thr):
-                    pr.score, pr.reject, pr.reason = score_aug, False, "pvad_ase_rescue"
-                elif (pvad_audit["applied"] and args.pvad_mode == "bidirectional_gray"
-                        and pvad_audit["decision_eligible"]):
-                    pr.score, pr.reject = score_aug, score_aug < pr.thr
-                    pr.reason = "pvad_ase_gray_reject" if pr.reject else ""
+                # Any ASE fault is fail-open: it must never turn a valid frozen-gate
+                # result into a pipeline error, including in audit-only mode.
+                try:
+                    from pvad_self_augment import ASEConfig, augment, augmented_score
+                    cfg = ASEConfig(win_sec=float(pvad_cfg["win_sec"]), hop_sec=float(pvad_cfg["hop_sec"]),
+                        lam=float(pvad_cfg["lambda"]), seed_abs=float(pvad_cfg["seed_abs"]),
+                        top2_margin=float(pvad_cfg["top2_margin"]), min_consecutive=int(pvad_cfg["min_consecutive"]),
+                        support_margin=float(pvad_cfg["support_margin"]),
+                        allowed_sources=tuple(x.strip() for x in str(pvad_cfg["allowed_sources"]).split(",") if x.strip()))
+                    pvad_audit = augment(enc, enroll_emb, streams, sr, cfg)
+                    score_aug = augmented_score(enc, pvad_audit.pop("embedding"), streams, sr, cfg.allowed_sources)
+                    pvad_audit.update({"mode": args.pvad_mode, "score_static": round(float(pr.score), 6),
+                        "score_aug": round(score_aug, 6), "config_sha256": pvad_config_sha,
+                        "decision_thr": args.pvad_decision_thr,
+                        "score_aggregation": "top2_mean_approved_streams",
+                        "fallback_used": not bool(pvad_audit["applied"])})
+                    gray = float(pvad_cfg["gray_low"] if pr.score < pr.thr else pvad_cfg["gray_high"])
+                    pvad_audit["decision_eligible"] = bool(pr.score_norm == "raw" and abs(pr.score - pr.thr) <= gray)
+                    if (pvad_audit["applied"] and args.pvad_mode == "rescue_only" and pr.reject
+                            and pvad_audit["decision_eligible"] and score_aug >= args.pvad_decision_thr):
+                        pr.score, pr.reject, pr.reason = score_aug, False, "pvad_ase_rescue"
+                    elif (pvad_audit["applied"] and args.pvad_mode == "bidirectional_gray"
+                            and pvad_audit["decision_eligible"]):
+                        pr.score, pr.reject = score_aug, score_aug < args.pvad_decision_thr
+                        pr.reason = "pvad_ase_gray_reject" if pr.reject else ""
+                except Exception as e:
+                    pvad_audit = {
+                        "applied": False, "reason": "pvad_ase_exception",
+                        "error_type": type(e).__name__, "error": str(e)[:500],
+                        "mode": args.pvad_mode, "score_static": round(float(pr.score), 6),
+                        "score_aug": round(float(pr.score), 6), "config_sha256": pvad_config_sha,
+                        "decision_thr": args.pvad_decision_thr,
+                        "score_aggregation": "top2_mean_approved_streams",
+                        "fallback_used": True, "decision_eligible": False,
+                    }
             if cached_streams is None:
                 reuse_stats["fresh"] += 1
             rec.update(pr.to_dict())
@@ -745,6 +778,21 @@ def main() -> int:
                 all_rows.append(r)
         print(f"[OK] {path} n={len(rows)}")
 
+    pvad_rows = [r.get("pvad") for r in all_rows if isinstance(r.get("pvad"), dict)]
+    pvad_summary = None
+    if pvad_cfg is not None:
+        pvad_summary = {
+            "mode": args.pvad_mode,
+            "config_sha256": pvad_config_sha,
+            "implementation_sha256": pvad_impl_sha,
+            "decision_thr": args.pvad_decision_thr,
+            "score_aggregation": "top2_mean_approved_streams",
+            "n_rows": len(pvad_rows),
+            "n_applied": sum(bool(r.get("applied")) for r in pvad_rows),
+            "n_fallback": sum(bool(r.get("fallback_used")) for r in pvad_rows),
+            "n_exceptions": sum(r.get("reason") == "pvad_ase_exception" for r in pvad_rows),
+        }
+
     with (results_dir / "all_results.jsonl").open("w", encoding="utf-8") as f:
         for r in all_rows:
             f.write(json.dumps(r, ensure_ascii=False) + "\n")
@@ -773,6 +821,7 @@ def main() -> int:
             "force_extract": args.force_extract,
             "skip_tse": args.skip_tse,
             "thr_file": str(thr_file) if thr_file else None,
+            "pvad": pvad_summary,
             "reuse_sep_root": str(reuse_sep_root) if reuse_sep_root else None,
             "reuse_sep_stats": reuse_stats,
         },

@@ -33,6 +33,19 @@ class ASEConfig:
     top2_margin: float = 0.04
     min_consecutive: int = 2
     support_margin: float = 0.0
+    allowed_sources: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        if self.win_sec <= 0 or self.hop_sec <= 0:
+            raise ValueError("ASE window and hop must be positive")
+        if not 0.0 <= self.lam <= 1.0:
+            raise ValueError("ASE lambda must be in [0, 1]")
+        if not -1.0 <= self.seed_abs <= 1.0:
+            raise ValueError("ASE seed_abs must be in [-1, 1]")
+        if self.top2_margin < 0 or self.support_margin < 0:
+            raise ValueError("ASE margins must be non-negative")
+        if self.min_consecutive < 1:
+            raise ValueError("ASE min_consecutive must be at least 1")
 
 
 def windows(wav: np.ndarray, sr: int, cfg: ASEConfig) -> list[tuple[int, int, np.ndarray]]:
@@ -64,7 +77,7 @@ def augment(encoder: Any, enroll_emb: np.ndarray, streams: dict[str, np.ndarray]
     e0 = _norm(enroll_emb)
     candidates: list[tuple[str, int, int, np.ndarray]] = []
     for source, wav in streams.items():
-        if source == "peak":
+        if source == "peak" or (cfg.allowed_sources and source not in cfg.allowed_sources):
             continue
         candidates += [(source, a, b, w) for a, b, w in windows(wav, sr, cfg)]
     if not candidates:
@@ -73,8 +86,22 @@ def augment(encoder: Any, enroll_emb: np.ndarray, streams: dict[str, np.ndarray]
     scores = [_cos(e0, x) for x in embs]
     order = sorted(range(len(scores)), key=scores.__getitem__, reverse=True)
     best_i = order[0]
-    second = scores[order[1]] if len(order) > 1 else -1.0
     source = candidates[best_i][0]
+    best_start, best_end = candidates[best_i][1], candidates[best_i][2]
+    # Adjacent 80%-overlapping windows are temporal support, not independent
+    # alternatives.  Counting them as top2 makes any 1.0 s / 0.2 s scan fail
+    # the margin test by construction.  A competitor must be another stream or
+    # a same-stream window with less than 50% overlap.
+    comparable: list[int] = []
+    for i, (src, start, end, _wav) in enumerate(candidates):
+        if i == best_i or src != source:
+            if i != best_i:
+                comparable.append(i)
+            continue
+        overlap = max(0, min(best_end, end) - max(best_start, start))
+        if overlap * 2 < min(best_end - best_start, end - start):
+            comparable.append(i)
+    second = max((scores[i] for i in comparable), default=-1.0)
     source_ix = [i for i, c in enumerate(candidates) if c[0] == source]
     local_scores = [scores[i] for i in source_ix]
     local_pos = source_ix.index(best_i)
@@ -88,16 +115,22 @@ def augment(encoder: Any, enroll_emb: np.ndarray, streams: dict[str, np.ndarray]
         "keyframe": {"source": source, "start_sec": round(candidates[best_i][1] / sr, 4),
                       "end_sec": round(candidates[best_i][2] / sr, 4),
                       "sim_e0": round(scores[best_i], 6), "top2_margin": round(margin, 6),
-                      "consecutive_support": support},
+                      "consecutive_support": support, "top2_candidates": len(comparable)},
         "config": asdict(cfg),
     }
     audit["embedding"] = _norm(cfg.lam * e0 + (1.0 - cfg.lam) * _norm(embs[best_i])) if trusted else e0
     return audit
 
 
-def augmented_score(encoder: Any, embedding: np.ndarray, streams: dict[str, np.ndarray], sr: int) -> float:
-    """Robust score: mean of top two stream similarities, never an isolated window maximum."""
-    xs = [w for name, w in streams.items() if name != "peak"]
+def augmented_score(encoder: Any, embedding: np.ndarray, streams: dict[str, np.ndarray], sr: int,
+                    allowed_sources: tuple[str, ...] = ()) -> float:
+    """Robust score: mean of top two approved stream similarities.
+
+    This score has its own calibration contract.  Callers must not compare it
+    with a threshold fitted for the frozen Presence aggregation.
+    """
+    xs = [w for name, w in streams.items()
+          if name != "peak" and (not allowed_sources or name in allowed_sources)]
     if not xs: return -1.0
     sims = sorted((_cos(embedding, x) for x in encoder.embed_batch(xs, sr)), reverse=True)
     return float(sum(sims[:min(2, len(sims))]) / min(2, len(sims)))

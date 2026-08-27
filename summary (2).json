@@ -1,0 +1,32 @@
+{
+  "metric_version": "official_character_weighted_v1",
+  "metric": "score=0.5*RR_neg + 0.5*(1-CER_pos_micro); rejected pos has errors=N",
+  "n_pos": 1364,
+  "n_neg": 474,
+  "n_neg_rejected": 434,
+  "n_neg_accepted": 40,
+  "rr_neg": 0.9156118143459916,
+  "far_neg_diagnostic": 0.08438818565400844,
+  "n_pos_false_reject": 284,
+  "n_pos_missing_decision": 0,
+  "frr_pos": 0.20821114369501467,
+  "cer_pos_micro": 0.3776282590412111,
+  "cer": 0.3776282590412111,
+  "cer_pos_macro_diagnostic": 0.4032738834875998,
+  "pos_total_errors": 3592,
+  "pos_total_ref_chars": 9512,
+  "contest_score": 0.7689917776523902,
+  "paths": {
+    "samples": "/root/autodl-tmp/ve_sep_cache/manifest/samples.jsonl",
+    "decisions": "/root/autodl-tmp/ve_sep_cache/reports/lift_overlay/submit_rows.jsonl",
+    "asr": "/root/autodl-tmp/ve_sep_cache/reports/asr_cer/asr_results.jsonl"
+  },
+  "coverage": {
+    "n_samples": 1838,
+    "n_decision_rows": 1838,
+    "n_asr_rows": 1364,
+    "duplicate_decisions": 0,
+    "duplicate_asr": 0,
+    "errors": []
+  }
+}

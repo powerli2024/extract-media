@@ -1,0 +1,111 @@
+(ve) root@autodl-container-5ae945a796-fc2db289:~/extract-media/ve# VE_OUT=/root/autodl-tmp/ve_sep_cache/ ./run_next_lift.sh submit
+=== submit 冻结 τ + 叠话加拒  VE_OUT=/root/autodl-tmp/ve_sep_cache/ ===
+[arm] ASR 过门 neg
+[INFO] neg FA 待 ASR=51 → /root/autodl-tmp/ve_sep_cache/reports/asr_neg_fa/asr_results.jsonl
+[OK] neg FA n=51 → /root/autodl-tmp/ve_sep_cache/reports/asr_neg_fa/asr_results.jsonl
+[arm] locked τ + 文本加拒 → result.json
+[OK] result.json → /root/autodl-tmp/ve_sep_cache/reports/submit/result.json contest=0.768992 RR=0.915612
+{
+  "tag": "submit",
+  "locked_thr": true,
+  "zh_thr": 0.29305,
+  "en_thr": 0.357868,
+  "file_extract_macro_diagnostic": {
+    "rr": 0.8924,
+    "frr": 0.2082,
+    "cer": 0.4033,
+    "contest": 0.7446,
+    "n_fr": 284,
+    "n_rej_neg": 423,
+    "n_pos": 1364,
+    "n_neg": 474,
+    "n_cer1_accept": 140,
+    "cer_accept": 0.2464,
+    "cer_hist_accept": {
+      "=0": 691,
+      "(0,0.25)": 80,
+      "[0.25,0.5)": 83,
+      "[0.5,1)": 86,
+      "=1": 140
+    }
+  },
+  "cosine_only_macro_diagnostic": {
+    "rr": 0.8924,
+    "frr": 0.2082,
+    "cer": 0.4033,
+    "contest": 0.7446,
+    "n_fr": 284,
+    "n_rej_neg": 423,
+    "n_pos": 1364,
+    "n_neg": 474,
+    "n_cer1_accept": 140,
+    "cer_accept": 0.2464,
+    "cer_hist_accept": {
+      "=0": 691,
+      "(0,0.25)": 80,
+      "[0.25,0.5)": 83,
+      "[0.5,1)": 86,
+      "=1": 140
+    }
+  },
+  "overlay_macro_diagnostic": {
+    "rr": 0.9156,
+    "frr": 0.2082,
+    "cer": 0.4033,
+    "contest": 0.7562,
+    "n_fr": 284,
+    "n_rej_neg": 434,
+    "n_pos": 1364,
+    "n_neg": 474,
+    "n_cer1_accept": 140,
+    "cer_accept": 0.2464,
+    "cer_hist_accept": {
+      "=0": 691,
+      "(0,0.25)": 80,
+      "[0.25,0.5)": 83,
+      "[0.5,1)": 86,
+      "=1": 140
+    }
+  },
+  "file_extract_official": {
+    "cer": 0.3776,
+    "rr": 0.8924,
+    "contest": 0.7574,
+    "total_errors": 3592,
+    "total_ref_chars": 9512,
+    "n_pos": 1364,
+    "n_neg": 474,
+    "n_rej_neg": 423
+  },
+  "cosine_only_official": {
+    "cer": 0.3776,
+    "rr": 0.8924,
+    "contest": 0.7574,
+    "total_errors": 3592,
+    "total_ref_chars": 9512,
+    "n_pos": 1364,
+    "n_neg": 474,
+    "n_rej_neg": 423
+  },
+  "overlay_official": {
+    "cer": 0.3776,
+    "rr": 0.9156,
+    "contest": 0.769,
+    "total_errors": 3592,
+    "total_ref_chars": 9512,
+    "n_pos": 1364,
+    "n_neg": 474,
+    "n_rej_neg": 434
+  },
+  "d_contest_vs_file": 0.011603,
+  "d_contest_vs_cosine": 0.011603,
+  "n_extra_pos": 0,
+  "n_extra_neg": 11,
+  "n_need_asr": 0,
+  "extra_reject": "len_and_nontask_gray",
+  "note": "overlay_macro_diagnostic 仅供历史对照；overlay_official 是正式字符加权口径。n_need_asr>0 时新放行 pos 仍按 CER=1 保守估计。",
+  "go_vs_file": true
+}
+[OK] /root/autodl-tmp/ve_sep_cache/reports/lift_overlay/submit.json
+提交文件: /root/autodl-tmp/ve_sep_cache//reports/submit/result.json
+对照 T0 locked_text contest 应 ≈ 0.7389
