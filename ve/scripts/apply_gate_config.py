@@ -15,6 +15,39 @@ def load_jsonl(path: Path) -> list[dict[str, Any]]:
     return [json.loads(x) for x in path.read_text(encoding="utf-8").splitlines() if x.strip()]
 
 
+def stream_source(
+    row: dict[str, Any],
+    policy: str,
+    *,
+    rescue_high_margin: float,
+    rescue_floor_margin: float,
+    rescue_dominance: float,
+) -> tuple[str, float, bool]:
+    """Return the stream metadata corresponding to ``stream_score``."""
+    sims = row.get("sim_streams") or {}
+    mix = float(sims.get("mix", row.get("sim_enroll_mix", 0.0)))
+    sep = sorted(
+        (
+            (str(k), float(v))
+            for k, v in sims.items()
+            if k not in {"mix", "mix_window", "peak"}
+        ),
+        key=lambda pair: pair[1],
+        reverse=True,
+    )
+    if policy == "mix":
+        return "mix", mix, False
+    if policy == "max":
+        return max([("mix", mix), *sep], key=lambda pair: pair[1]) + (False,)
+    if policy != "strict_rescue":
+        raise ValueError(f"unknown policy={policy}")
+    if len(sep) >= 2 and sep[0][1] - sep[1][1] >= rescue_dominance:
+        rescue_cap = min(sep[0][1] - rescue_high_margin, mix + rescue_floor_margin)
+        if rescue_cap > mix:
+            return sep[0][0], rescue_cap, True
+    return "mix", mix, False
+
+
 def apply_rows(rows: list[dict[str, Any]], config: dict[str, Any]) -> list[dict[str, Any]]:
     thresholds = load_thresholds_from_data(config)
     policy = str(config.get("stream_policy") or "max")
@@ -31,15 +64,39 @@ def apply_rows(rows: list[dict[str, Any]], config: dict[str, Any]) -> list[dict[
             row, policy, rescue_high_margin=margins[0],
             rescue_floor_margin=margins[1], rescue_dominance=margins[2],
         )
+        best_stream, source_value, rescue_eligible = stream_source(
+            row,
+            policy,
+            rescue_high_margin=margins[0],
+            rescue_floor_margin=margins[1],
+            rescue_dominance=margins[2],
+        )
+        if abs(value - source_value) > 1e-12:
+            raise RuntimeError(
+                f"stream metadata mismatch uid={row.get('uid')} "
+                f"score={value} source_score={source_value}"
+            )
         threshold = float(thresholds.get(lang, thresholds["default"]))
         reject = value < threshold
+        sims = row.get("sim_streams") or {}
         row.update({
-            "presence_score": value, "presence_thr": threshold,
+            "presence_score": value,
+            "presence_score_raw": value,
+            "presence_thr": threshold,
+            "sim_enroll_mix": float(sims.get("mix", row.get("sim_enroll_mix", 0.0))),
+            "best_stream": best_stream,
+            "score_norm": "raw",
             "stream_policy": policy, "decision": "reject" if reject else "accept",
             "reject_decision": reject,
             "reject_reason": "speaker_absent" if reject else "",
+            "rescue_eligible": rescue_eligible,
             "gate_overlay_source": "recommended_thr.json",
         })
+        for stale_key in (
+            "znorm_mu", "znorm_sigma", "znorm_mu_test", "znorm_sigma_test",
+            "z_enroll", "z_test",
+        ):
+            row.pop(stale_key, None)
         out.append(row)
     return out
 
